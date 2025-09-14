@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename
 
+global data
+
 def import_csv_data():
     global data
 
@@ -119,53 +121,44 @@ def plot_tauc(_=None):
 
     ax.clear()
     ax.plot(energy(data.index), tauc_values,
-              'k--', linewidth=1.5, alpha=0.7,
-              label=f'{sample} full spectrum')
+              color='black', linewidth=1.5, alpha=0.7,
+              label='Full spectrum')
     
     # Find indices corresponding to the energy bounds
     indices_1 = np.where((energy(data.index) >= lb_1_slider.get()) & (energy(data.index) <= ub_1_slider.get()))[0]
 
     if len(indices_1) > 0:
-        # Get the relevant section for linear fitting
         x_fit_1 = energy(data.index)[indices_1]
         y_fit_1 = tauc_values[indices_1]
         
-        # Plot the selected range with different color
-        ax.plot(x_fit_1, y_fit_1, 'r-', linewidth=2.5, label=f'{sample} - Selected range')
+        ax.plot(x_fit_1, y_fit_1, 'r-', linewidth=2.5, label='Selected range 1')
         
-        # Perform linear fit on the selected range
         coeffs_1 = np.polyfit(x_fit_1, y_fit_1, 1)
         poly_1 = np.poly1d(coeffs_1)
         
-        # Plot the linear fit line
         x_line_1 = np.linspace(lb_1_slider.get() * 0.7, ub_1_slider.get() * 1.3, 100)
         ax.plot(x_line_1, poly_1(x_line_1), 'g--', linewidth=1.5, 
-                    label=f'Linear fit: y = {coeffs_1[0]:.2f}x {coeffs_1[1]:+.2f}')
+                    label=f'Linear fit 1: y = {coeffs_1[0]:.2f}x {coeffs_1[1] :+.2f}')
         
     # Find indices corresponding to the energy bounds
     indices_2 = np.where((energy(data.index) >= lb_2_slider.get()) & (energy(data.index) <= ub_2_slider.get()))[0]
 
     if len(indices_2) > 0:
-        # Get the relevant section for linear fitting
         x_fit_2 = energy(data.index)[indices_2]
         y_fit_2 = tauc_values[indices_2]
         
-        # Plot the selected range with different color
-        ax.plot(x_fit_2, y_fit_2, 'r-', linewidth=2.5, label=f'{sample} - Selected range')
+        ax.plot(x_fit_2, y_fit_2, 'r-', linewidth=2.5, label='Selected range 2')
         
-        # Perform linear fit on the selected range
         coeffs_2 = np.polyfit(x_fit_2, y_fit_2, 1)
         poly_2 = np.poly1d(coeffs_2)
         
-        # Plot the linear fit line
         x_line_2 = np.linspace(lb_2_slider.get() * 0.7, ub_2_slider.get() * 1.3, 100)
         ax.plot(x_line_2, poly_2(x_line_2), 'g--', linewidth=1.5, 
-                    label=f'Linear fit: y = {coeffs_2[0]:.2f}x {coeffs_2[1]:+.2f}')
+                    label=f'Linear fit 2: y = {coeffs_2[0]:.2f}x {coeffs_2[1] :+.2f}')
 
     x, y = line_intersection(line1x=x_line_1, line1y=poly_1(x_line_1),
                               line2x=x_line_2, line2y=poly_2(x_line_2))
-    print(f"Bandgap of {sample}: {x:.3f} eV")
-    #plt.scatter(x, y, color="blue")
+    bandgap_var.set(f"Bandgap: {x:.3f} eV")
     
     ax.set_xlabel("Photon Energy (eV)")
     ax.set_ylabel(y_label)
@@ -179,6 +172,7 @@ def plot_tauc(_=None):
     canvas.draw()
 
 root = tk.Tk(className= "Tauc Plot Analyser")
+bandgap_var = tk.StringVar(value="Bandgap: -- eV")
 
 paned = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
 paned.pack(fill=tk.BOTH, expand=True)
@@ -200,6 +194,10 @@ toolbar = NavigationToolbar2Tk(canvas, plot_frame)
 toolbar.update()
 toolbar.pack(side=tk.BOTTOM, fill=tk.X)
 
+import_button = ttk.Button(
+    ctrl_frame, text="Import CSV", command=import_csv_data
+)
+import_button.pack(fill=tk.X, pady=5)
 
 n_var = tk.StringVar(value="Direct allowed (n=2)")
 n_menu = ttk.OptionMenu(ctrl_frame, n_var,
@@ -221,39 +219,53 @@ ub_1_var = tk.DoubleVar(value=3)
 lb_2_var = tk.DoubleVar(value=6)
 ub_2_var = tk.DoubleVar(value=7)
 
+lb_1_label = ttk.Label(ctrl_frame, text="Lower Bound 1 (eV)")
+lb_1_label.pack(fill=tk.X, padx=(0, 5), pady=(10, 0))
+lb_1_val_label = ttk.Label(ctrl_frame, textvariable=lb_1_var, anchor="w")
+lb_1_val_label.pack(fill=tk.X, pady=0)
 lb_1_slider = ttk.Scale(
     ctrl_frame, 
     from_=0, 
     to=10, orient='horizontal',
     variable=lb_1_var, command=plot_tauc
 )
-lb_1_slider.pack(fill=tk.X, pady=5)
+lb_1_slider.pack(fill=tk.X, pady=(0, 10))
 
+ub_1_label = ttk.Label(ctrl_frame, text="Upper Bound 1 (eV)")
+ub_1_label.pack(fill=tk.X, padx=(0,5), pady=(10, 0))
+ub_1_val_label = ttk.Label(ctrl_frame, textvariable=ub_1_var, anchor="w")
+ub_1_val_label.pack(fill=tk.X, pady=0)
 ub_1_slider = ttk.Scale(
     ctrl_frame, from_=0, 
     to=10, orient='horizontal',
     variable=ub_1_var, command=plot_tauc
 )
-ub_1_slider.pack(fill=tk.X, pady=5)
+ub_1_slider.pack(fill=tk.X, pady=(0, 10))
 
+lb_2_label = ttk.Label(ctrl_frame, text="Lower Bound 2 (eV)")
+lb_2_label.pack(fill=tk.X, padx=(0,5), pady=(10, 0))
+lb_2_val_label = ttk.Label(ctrl_frame, textvariable=lb_2_var, anchor="w")
+lb_2_val_label.pack(fill=tk.X, pady=0)
 lb_2_slider = ttk.Scale(
     ctrl_frame, from_=0, 
     to=10, orient='horizontal',
     variable=lb_2_var, command=plot_tauc
 )
-lb_2_slider.pack(fill=tk.X, pady=5)
+lb_2_slider.pack(fill=tk.X, pady=(0, 10))
 
+ub_2_label = ttk.Label(ctrl_frame, text="Upper Bound 2 (eV)")
+ub_2_label.pack(fill=tk.X, padx=(0,5), pady=0)
+ub_2_val_label = ttk.Label(ctrl_frame, textvariable=ub_2_var, anchor="w")
+ub_2_val_label.pack(fill=tk.X, pady=(10,0))
 ub_2_slider = ttk.Scale(
     ctrl_frame, from_=0, 
     to=10, orient='horizontal',
     variable=ub_2_var, command=plot_tauc
 )
-ub_2_slider.pack(fill=tk.X, pady=5)
+ub_2_slider.pack(fill=tk.X, pady=(0, 10))
 
-import_button = ttk.Button(
-    ctrl_frame, text="Import CSV", command=import_csv_data
-)
-import_button.pack(fill=tk.X, pady=5)
+bandgap_label = ttk.Label(ctrl_frame, textvariable=bandgap_var, relief="groove", anchor="center")
+bandgap_label.pack(fill=tk.X, pady=5)
 
 root.mainloop()
 
