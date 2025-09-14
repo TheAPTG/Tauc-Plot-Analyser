@@ -1,0 +1,265 @@
+import numpy as np 
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+import tkinter as tk
+from tkinter import ttk
+from tkinter.filedialog import askopenfilename
+
+def import_csv_data():
+    global data
+
+    f_types = [('CSV Files', '*.csv')]
+
+    csv_file_path = askopenfilename(filetypes=f_types)
+    if not csv_file_path:
+        return
+    df = pd.read_csv(csv_file_path, skiprows=5, header=None)
+    num_cols = df.shape[1]
+    columns = df.iloc[0]
+    cleaned_data = {}
+    wavelengths = None
+    for i in range(0, num_cols, 2):
+        if i + 1 < num_cols:
+            label = columns[i + 1]
+            if label in []:
+                continue
+            wavelengths_col = df.iloc[1:, i].astype(float)
+            values = df.iloc[1:, i + 1].astype(float)
+            if wavelengths is None:
+                wavelengths = wavelengths_col.values
+            cleaned_data[label] = values.values
+    data = pd.DataFrame(cleaned_data, index=wavelengths)
+
+    # Update the sample dropdown menu
+    sample_menu['menu'].delete(0, 'end')
+    for sample in data.columns:
+        sample_menu['menu'].add_command(label=sample, command=tk._setit(sample_var, sample))
+    sample_var.set(data.columns[0])  # Set default selection
+
+    # Calculate min and max photon energy
+    photon_energy = energy(data.index)
+    min_e = min(photon_energy)
+    max_e = max(photon_energy)
+
+    # Update sliders' ranges and values
+    lb_1_slider.config(from_=min_e, to=max_e)
+    ub_1_slider.config(from_=min_e, to=max_e)
+    lb_2_slider.config(from_=min_e, to=max_e)
+    ub_2_slider.config(from_=min_e, to=max_e)
+
+    # Set default slider values (e.g., 20% and 80% of the range)
+    lb_1_var.set(min_e + 0.2 * (max_e - min_e))
+    ub_1_var.set(min_e + 0.8 * (max_e - min_e))
+    lb_2_var.set(min_e + 0.2 * (max_e - min_e))
+    ub_2_var.set(min_e + 0.8 * (max_e - min_e))
+
+    return data
+
+def energy(data):
+    photon_energy = np.array(1240 / data)
+    return photon_energy
+
+def calculate_tauc(absorbance, energy, n):
+    """Calculate Tauc plot values
+    n=2 for direct allowed transitions
+    n=1/2 for indirect allowed transitions
+    """
+    return np.array((absorbance * energy)**n)
+
+def line_intersection(line1x, line1y, line2x, line2y):
+    """
+    Find the intersection of two lines defined by arrays of points.
+
+    Parameters:
+    - line1x, line1y: Arrays of x and y coordinates for the first line
+    - line2x, line2y: Arrays of x and y coordinates for the second line
+
+    Returns:
+    - x, y: Coordinates of the intersection point
+    """
+    # Convert arrays to numpy arrays if they're not already
+    line1x = np.array(line1x)
+    line1y = np.array(line1y)
+    line2x = np.array(line2x)
+    line2y = np.array(line2y)
+
+    # Fit lines to get slope and intercept
+    coeffs1 = np.polyfit(line1x, line1y, 1)
+    coeffs2 = np.polyfit(line2x, line2y, 1)
+
+    # Extract slope and intercept
+    m1, b1 = coeffs1
+    m2, b2 = coeffs2
+
+    # Check if lines are parallel
+    if m1 == m2:
+        raise Exception('Lines are parallel, they do not intersect')
+
+    # Calculate intersection point
+    x = (b2 - b1) / (m1 - m2)
+    y = m1 * x + b1
+
+    return x, y
+
+def plot_tauc(_=None):
+    sample = sample_var.get()
+    absorbance = data[sample]
+    transition_type = n_var.get()
+
+    if transition_type == "Direct allowed (n=2)":
+        n = 2
+        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        y_label = r"$(\alpha E)^2$"
+    else:
+        n = 0.5
+        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        y_label = r"$(\alpha E)^{1/2}$"
+
+    ax.clear()
+    ax.plot(energy(data.index), tauc_values,
+              'k--', linewidth=1.5, alpha=0.7,
+              label=f'{sample} full spectrum')
+    
+    # Find indices corresponding to the energy bounds
+    indices_1 = np.where((energy(data.index) >= lb_1_slider.get()) & (energy(data.index) <= ub_1_slider.get()))[0]
+
+    if len(indices_1) > 0:
+        # Get the relevant section for linear fitting
+        x_fit_1 = energy(data.index)[indices_1]
+        y_fit_1 = tauc_values[indices_1]
+        
+        # Plot the selected range with different color
+        ax.plot(x_fit_1, y_fit_1, 'r-', linewidth=2.5, label=f'{sample} - Selected range')
+        
+        # Perform linear fit on the selected range
+        coeffs_1 = np.polyfit(x_fit_1, y_fit_1, 1)
+        poly_1 = np.poly1d(coeffs_1)
+        
+        # Plot the linear fit line
+        x_line_1 = np.linspace(lb_1_slider.get() * 0.7, ub_1_slider.get() * 1.3, 100)
+        ax.plot(x_line_1, poly_1(x_line_1), 'g--', linewidth=1.5, 
+                    label=f'Linear fit: y = {coeffs_1[0]:.2f}x {coeffs_1[1]:+.2f}')
+        
+    # Find indices corresponding to the energy bounds
+    indices_2 = np.where((energy(data.index) >= lb_2_slider.get()) & (energy(data.index) <= ub_2_slider.get()))[0]
+
+    if len(indices_2) > 0:
+        # Get the relevant section for linear fitting
+        x_fit_2 = energy(data.index)[indices_2]
+        y_fit_2 = tauc_values[indices_2]
+        
+        # Plot the selected range with different color
+        ax.plot(x_fit_2, y_fit_2, 'r-', linewidth=2.5, label=f'{sample} - Selected range')
+        
+        # Perform linear fit on the selected range
+        coeffs_2 = np.polyfit(x_fit_2, y_fit_2, 1)
+        poly_2 = np.poly1d(coeffs_2)
+        
+        # Plot the linear fit line
+        x_line_2 = np.linspace(lb_2_slider.get() * 0.7, ub_2_slider.get() * 1.3, 100)
+        ax.plot(x_line_2, poly_2(x_line_2), 'g--', linewidth=1.5, 
+                    label=f'Linear fit: y = {coeffs_2[0]:.2f}x {coeffs_2[1]:+.2f}')
+
+    x, y = line_intersection(line1x=x_line_1, line1y=poly_1(x_line_1),
+                              line2x=x_line_2, line2y=poly_2(x_line_2))
+    print(f"Bandgap of {sample}: {x:.3f} eV")
+    #plt.scatter(x, y, color="blue")
+    
+    ax.set_xlabel("Photon Energy (eV)")
+    ax.set_ylabel(y_label)
+    ax.set_title(f"Tauc Plot for {sample} - {transition_type}")
+    ax.legend(loc='upper left')
+    
+    # Set appropriate axes limits
+    ax.set_xlim(min(energy(data.index)) * 0.9, max(energy(data.index)) * 1.1)
+    
+    # Display the plot
+    canvas.draw()
+
+root = tk.Tk(className= "Tauc Plot Analyser")
+
+paned = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
+paned.pack(fill=tk.BOTH, expand=True)
+
+plot_frame = ttk.Frame(paned, padding=5)
+paned.add(plot_frame, weight=3)
+
+ctrl_frame = ttk.LabelFrame(paned, text="Controls", padding=10)
+paned.add(ctrl_frame, weight=1)
+
+fig = Figure(figsize=(5, 5), dpi=100)
+ax = fig.add_subplot(111)   # primary axis
+
+canvas = FigureCanvasTkAgg(fig, master=plot_frame)
+canvas.draw()
+canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+toolbar = NavigationToolbar2Tk(canvas, plot_frame)
+toolbar.update()
+toolbar.pack(side=tk.BOTTOM, fill=tk.X)
+
+
+n_var = tk.StringVar(value="Direct allowed (n=2)")
+n_menu = ttk.OptionMenu(ctrl_frame, n_var,
+        "Direct allowed (n=2)", 
+        *["Direct allowed (n=2)", "Indirect allowed (n=1/2)"],
+        command=plot_tauc
+        )
+n_menu.pack(fill=tk.X, pady=5)
+
+sample_var = tk.StringVar()
+sample_menu = ttk.OptionMenu(
+    ctrl_frame, sample_var, "",
+    command=plot_tauc
+)
+sample_menu.pack(fill=tk.X, pady=5)
+
+lb_1_var = tk.DoubleVar(value=2)
+ub_1_var = tk.DoubleVar(value=3)
+lb_2_var = tk.DoubleVar(value=6)
+ub_2_var = tk.DoubleVar(value=7)
+
+lb_1_slider = ttk.Scale(
+    ctrl_frame, 
+    from_=0, 
+    to=10, orient='horizontal',
+    variable=lb_1_var, command=plot_tauc
+)
+lb_1_slider.pack(fill=tk.X, pady=5)
+
+ub_1_slider = ttk.Scale(
+    ctrl_frame, from_=0, 
+    to=10, orient='horizontal',
+    variable=ub_1_var, command=plot_tauc
+)
+ub_1_slider.pack(fill=tk.X, pady=5)
+
+lb_2_slider = ttk.Scale(
+    ctrl_frame, from_=0, 
+    to=10, orient='horizontal',
+    variable=lb_2_var, command=plot_tauc
+)
+lb_2_slider.pack(fill=tk.X, pady=5)
+
+ub_2_slider = ttk.Scale(
+    ctrl_frame, from_=0, 
+    to=10, orient='horizontal',
+    variable=ub_2_var, command=plot_tauc
+)
+ub_2_slider.pack(fill=tk.X, pady=5)
+
+import_button = ttk.Button(
+    ctrl_frame, text="Import CSV", command=import_csv_data
+)
+import_button.pack(fill=tk.X, pady=5)
+
+root.mainloop()
+
+
+
+
+
+
+
