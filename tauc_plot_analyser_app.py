@@ -19,8 +19,6 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename
 
-global data
-
 def import_csv_data():
     global data
 
@@ -143,7 +141,7 @@ def plot_tauc(_=None):
         x_fit_1 = energy(data.index)[indices_1]
         y_fit_1 = tauc_values[indices_1]
         
-        ax.plot(x_fit_1, y_fit_1, 'r-', linewidth=2.5, label='Selected range 1')
+        ax.plot(x_fit_1, y_fit_1, 'b-', linewidth=2.5, label='Selected range 1')
         
         coeffs_1 = np.polyfit(x_fit_1, y_fit_1, 1)
         poly_1 = np.poly1d(coeffs_1)
