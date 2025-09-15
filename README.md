@@ -1,6 +1,6 @@
 # Tauc Plot Analyser
 
-This Python application was created to help calculate bandgaps easily from UV-Vis absorbance spectra.
+This Python application was created to help calculate bandgaps easily from UV-Vis absorbance spectra. Currently only works with data exported from UV-3600 Shimadzu or anything that looks like it. 
 
 ## Features
 - Sliders to choose selection areas
