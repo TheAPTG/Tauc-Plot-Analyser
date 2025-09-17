@@ -10,6 +10,7 @@
 #                                                Last updated: 14.09.2025                                              #
 ########################################################################################################################
 
+import os
 import numpy as np 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -22,33 +23,49 @@ from tkinter.filedialog import askopenfilename
 def import_csv_data():
     global data
 
-    f_types = [('CSV Files', '*.csv')]
+    f_types = [('CSV Files', '*.csv'), ('text Files', '*.txt')]
 
     csv_file_path = askopenfilename(filetypes=f_types)
     if not csv_file_path:
         return
-    df = pd.read_csv(csv_file_path, skiprows=5, header=None)
-    num_cols = df.shape[1]
-    columns = df.iloc[0]
-    cleaned_data = {}
-    wavelengths = None
-    for i in range(0, num_cols, 2):
-        if i + 1 < num_cols:
-            label = columns[i + 1]
-            if label in []:
-                continue
-            wavelengths_col = df.iloc[1:, i].astype(float)
-            values = df.iloc[1:, i + 1].astype(float)
-            if wavelengths is None:
-                wavelengths = wavelengths_col.values
-            cleaned_data[label] = values.values
-    data = pd.DataFrame(cleaned_data, index=wavelengths)
+    if csv_file_path.endswith('.csv'):
+        df = pd.read_csv(csv_file_path, skiprows=5, header=None)
+        num_cols = df.shape[1]
+        columns = df.iloc[0]
+        cleaned_data = {}
+        wavelengths = None
+        for i in range(0, num_cols, 2):
+            if i + 1 < num_cols:
+                label = columns[i + 1]
+                if label in []:
+                    continue
+                wavelengths_col = df.iloc[1:, i].astype(float)
+                values = df.iloc[1:, i + 1].astype(float)
+                if wavelengths is None:
+                    wavelengths = wavelengths_col.values
+                cleaned_data[label] = values.values
+        data = pd.DataFrame(cleaned_data, index=wavelengths)
+        # Update the sample dropdown menu
+        sample_menu['menu'].delete(0, 'end')
+        for sample in data.columns:
+            sample_menu['menu'].add_command(label=sample, command=tk._setit(sample_var, sample))
+        sample_var.set(data.columns[0])  # Set default selection
+    elif csv_file_path.endswith('.txt'):
+        df = pd.read_csv(csv_file_path, sep=",", skiprows=2, header=None, names=["Wavelength", "Values"])
+        cleaned_df = df.iloc[0::2]
+        cleaned_data = {}
+        wavelengths = None
+        if wavelengths is None:
+            wavelengths = cleaned_df["Wavelength"].values.astype(float)
+        file_name = os.path.splitext(os.path.basename(csv_file_path))[0]
+        cleaned_data[file_name] = cleaned_df["Values"].values.astype(float)
+        data = pd.DataFrame(cleaned_data, index=wavelengths)
 
-    # Update the sample dropdown menu
-    sample_menu['menu'].delete(0, 'end')
-    for sample in data.columns:
-        sample_menu['menu'].add_command(label=sample, command=tk._setit(sample_var, sample))
-    sample_var.set(data.columns[0])  # Set default selection
+        
+
+        sample_menu["menu"].delete(0, 'end')
+        sample_menu["menu"].add_command(label=file_name, command=tk._setit(sample_var, file_name))
+        sample_var.set(data.columns[0])
 
     # Calculate min and max photon energy
     photon_energy = energy(data.index)
@@ -124,10 +141,18 @@ def plot_tauc(_=None):
         n = 2
         tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
         y_label = r"$(\alpha E)^2$"
-    else:
+    elif transition_type == "Indirect allowed (n=1/2)":
         n = 0.5
         tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
         y_label = r"$(\alpha E)^{1/2}$"
+    elif transition_type == "Direct forbidden (n=2/3)":
+        n = 2/3
+        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        y_label = r"$(\alpha E)^{2/3}$"
+    else:
+        n = 1/3
+        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        y_label = r"$(\alpha E)^{1/3}$"
 
     ax.clear()
     ax.plot(energy(data.index), tauc_values,
@@ -181,17 +206,18 @@ def plot_tauc(_=None):
     # Display the plot
     canvas.draw()
 
+### Build app GUI ###
 root = tk.Tk(className= "Tauc Plot Analyser")
 bandgap_var = tk.StringVar(value="Bandgap: -- eV")
 
-paned = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
-paned.pack(fill=tk.BOTH, expand=True)
+paned1 = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
+paned1.pack(fill=tk.BOTH, expand=True)
 
-plot_frame = ttk.Frame(paned, padding=5)
-paned.add(plot_frame, weight=3)
+plot_frame = ttk.Frame(paned1, padding=5)
+paned1.add(plot_frame, weight=3)
 
-ctrl_frame = ttk.LabelFrame(paned, text="Controls", padding=10)
-paned.add(ctrl_frame, weight=1)
+ctrl_frame = ttk.LabelFrame(paned1, text="Controls", padding=10)
+paned1.add(ctrl_frame, weight=1)
 
 fig = Figure(figsize=(5, 5), dpi=100)
 ax = fig.add_subplot(111)   # primary axis
@@ -204,7 +230,7 @@ toolbar = NavigationToolbar2Tk(canvas, plot_frame)
 toolbar.update()
 toolbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-import_button = ttk.Button(
+import_button = ttk.Button( 
     ctrl_frame, text="Import CSV", command=import_csv_data
 )
 import_button.pack(fill=tk.X, pady=5)
@@ -212,7 +238,7 @@ import_button.pack(fill=tk.X, pady=5)
 n_var = tk.StringVar(value="Direct allowed (n=2)")
 n_menu = ttk.OptionMenu(ctrl_frame, n_var,
         "Direct allowed (n=2)", 
-        *["Direct allowed (n=2)", "Indirect allowed (n=1/2)"],
+        *["Direct allowed (n=2)", "Indirect allowed (n=1/2)", "Direct forbidden (n=2/3)", "Indirect forbidden (n=1/3)"],
         command=plot_tauc
         )
 n_menu.pack(fill=tk.X, pady=5)
