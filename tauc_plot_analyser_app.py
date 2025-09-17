@@ -7,7 +7,7 @@
 #               \/            \/                                       \/     \/     \/     \/         \/     \/       # 
 #                                               Author: Axel Tracol Gavard                                             #
 #                                                                                                                      #
-#                                                Last updated: 14.09.2025                                              #
+#                                                Last updated: 17.09.2025                                              #
 ########################################################################################################################
 
 import os
@@ -20,16 +20,16 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename
 
-def import_csv_data():
+def import_absorption_data():
     global data
 
     f_types = [('CSV Files', '*.csv'), ('text Files', '*.txt')]
 
-    csv_file_path = askopenfilename(filetypes=f_types)
-    if not csv_file_path:
+    file_path = askopenfilename(filetypes=f_types)
+    if not file_path:
         return
-    if csv_file_path.endswith('.csv'):
-        df = pd.read_csv(csv_file_path, skiprows=5, header=None)
+    if file_path.endswith('.csv'):
+        df = pd.read_csv(file_path, skiprows=5, header=None)
         num_cols = df.shape[1]
         columns = df.iloc[0]
         cleaned_data = {}
@@ -50,18 +50,16 @@ def import_csv_data():
         for sample in data.columns:
             sample_menu['menu'].add_command(label=sample, command=tk._setit(sample_var, sample))
         sample_var.set(data.columns[0])  # Set default selection
-    elif csv_file_path.endswith('.txt'):
-        df = pd.read_csv(csv_file_path, sep=",", skiprows=2, header=None, names=["Wavelength", "Values"])
+    elif file_path.endswith('.txt'):
+        df = pd.read_csv(file_path, sep=",", skiprows=2, header=None, names=["Wavelength", "Values"])
         cleaned_df = df.iloc[0::2]
         cleaned_data = {}
         wavelengths = None
         if wavelengths is None:
             wavelengths = cleaned_df["Wavelength"].values.astype(float)
-        file_name = os.path.splitext(os.path.basename(csv_file_path))[0]
+        file_name = os.path.splitext(os.path.basename(file_path))[0]
         cleaned_data[file_name] = cleaned_df["Values"].values.astype(float)
         data = pd.DataFrame(cleaned_data, index=wavelengths)
-
-        
 
         sample_menu["menu"].delete(0, 'end')
         sample_menu["menu"].add_command(label=file_name, command=tk._setit(sample_var, file_name))
@@ -86,16 +84,112 @@ def import_csv_data():
 
     return data
 
+def import_t_r_data():
+    global data, T, R
+
+    f_types = [('CSV Files', '*.csv'), ('text Files', '*.txt')]
+
+    r_file_path = askopenfilename(filetypes=f_types, title="Select Reflectance File")
+    if not r_file_path:
+        return
+
+    t_file_path = askopenfilename(filetypes=f_types, title="Select Transmittance File")
+    if not t_file_path:
+        return
+
+    # Load Reflectance data
+    if r_file_path.endswith('.csv'):
+        r_df = pd.read_csv(r_file_path, skiprows=5, header=None)
+        num_cols = r_df.shape[1]
+        r_columns = r_df.iloc[0]
+        r_cleaned_data = {}
+        wavelengths = None
+        for i in range(0, num_cols, 2):
+            if i + 1 < num_cols:
+                label = r_columns[i + 1]
+                if label in []:
+                    continue
+                wavelengths_col = r_df.iloc[1:, i].astype(float)
+                values = r_df.iloc[1:, i + 1].astype(float)
+                if wavelengths is None:
+                    wavelengths = wavelengths_col.values
+                r_cleaned_data[label] = values.values
+        R = pd.DataFrame(r_cleaned_data, index=wavelengths)
+    elif r_file_path.endswith('.txt'):
+        r_df = pd.read_csv(r_file_path, sep=",", skiprows=2, header=None, names=["Wavelength", "Values"])
+        r_cleaned_df = r_df.iloc[0::2]
+        r_cleaned_data = {}
+        wavelengths = None
+        if wavelengths is None:
+            wavelengths = r_cleaned_df["Wavelength"].values.astype(float)
+        file_name = os.path.splitext(os.path.basename(r_file_path))[0]
+        r_cleaned_data[file_name] = r_cleaned_df["Values"].values.astype(float)
+        R = pd.DataFrame(r_cleaned_data, index=wavelengths)
+
+    # Load Transmittance data
+    if t_file_path.endswith('.csv'):
+        t_df = pd.read_csv(t_file_path, skiprows=5, header=None)
+        num_cols = t_df.shape[1]
+        t_columns = t_df.iloc[0]
+        t_cleaned_data = {}
+        wavelengths = None
+        for i in range(0, num_cols, 2):
+            if i + 1 < num_cols:
+                label = t_columns[i + 1]
+                if label in []:
+                    continue
+                wavelengths_col = t_df.iloc[1:, i].astype(float)
+                values = t_df.iloc[1:, i + 1].astype(float)
+                if wavelengths is None:
+                    wavelengths = wavelengths_col.values
+                t_cleaned_data[label] = values.values
+        T = pd.DataFrame(t_cleaned_data, index=wavelengths)
+    elif t_file_path.endswith('.txt'):
+        t_df = pd.read_csv(t_file_path, sep=",", skiprows=2, header=None, names=["Wavelength", "Values"])
+        t_cleaned_df = t_df.iloc[0::2]
+        t_cleaned_data = {}
+        wavelengths = None
+        if wavelengths is None:
+            wavelengths = t_cleaned_df["Wavelength"].values.astype(float)
+        file_name = os.path.splitext(os.path.basename(t_file_path))[0]
+        t_cleaned_data[file_name] = t_cleaned_df["Values"].values.astype(float)
+        T = pd.DataFrame(t_cleaned_data, index=wavelengths)
+
+    # Merge R and T into a single DataFrame
+    data = pd.concat([R, T], axis=1)
+
+    # Update the sample dropdown menu
+    sample_menu['menu'].delete(0, 'end')
+    for sample in data.columns:
+        sample_menu['menu'].add_command(label=sample, command=tk._setit(sample_var, sample))
+    sample_var.set(data.columns[0])  # Set default selection
+
+    # Calculate min and max photon energy
+    photon_energy = energy(data.index)
+    min_e = min(photon_energy)
+    max_e = max(photon_energy)
+
+    # Update sliders' ranges and values
+    lb_1_slider.config(from_=min_e, to=max_e)
+    ub_1_slider.config(from_=min_e, to=max_e)
+    lb_2_slider.config(from_=min_e, to=max_e)
+    ub_2_slider.config(from_=min_e, to=max_e)
+
+    # Set default slider values (e.g., 20% and 80% of the range)
+    lb_1_var.set(min_e + 0.2 * (max_e - min_e))
+    ub_1_var.set(min_e + 0.8 * (max_e - min_e))
+    lb_2_var.set(min_e + 0.2 * (max_e - min_e))
+    ub_2_var.set(min_e + 0.8 * (max_e - min_e))
+
+    print(data)
+    return data
+
 def energy(data):
     photon_energy = np.array(1240 / data)
     return photon_energy
 
-def calculate_tauc(absorbance, energy, n):
-    """Calculate Tauc plot values
-    n=2 for direct allowed transitions
-    n=1/2 for indirect allowed transitions
-    """
-    return np.array((absorbance * energy)**n)
+def calculate_tauc(ab_coeff, energy, n):
+    return np.array((ab_coeff * energy)**n)
 
 def line_intersection(line1x, line1y, line2x, line2y):
     """
@@ -134,24 +228,30 @@ def line_intersection(line1x, line1y, line2x, line2y):
 
 def plot_tauc(_=None):
     sample = sample_var.get()
-    absorbance = data[sample]
+    spc_type = spc_var.get()
     transition_type = n_var.get()
+    distance = d_var.get()
+
+    if spc_type == "Absorbance":
+        abs_coeff = data[sample]/distance
+    else:
+        abs_coeff = -np.log(T[sample]/(100 - R[sample]))/distance
 
     if transition_type == "Direct allowed (n=2)":
         n = 2
-        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        tauc_values = calculate_tauc(abs_coeff, energy(data.index), n=n)
         y_label = r"$(\alpha E)^2$"
     elif transition_type == "Indirect allowed (n=1/2)":
         n = 0.5
-        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        tauc_values = calculate_tauc(abs_coeff, energy(data.index), n=n)
         y_label = r"$(\alpha E)^{1/2}$"
     elif transition_type == "Direct forbidden (n=2/3)":
         n = 2/3
-        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        tauc_values = calculate_tauc(abs_coeff, energy(data.index), n=n)
         y_label = r"$(\alpha E)^{2/3}$"
     else:
         n = 1/3
-        tauc_values = calculate_tauc(absorbance, energy(data.index), n=n)
+        tauc_values = calculate_tauc(abs_coeff, energy(data.index), n=n)
         y_label = r"$(\alpha E)^{1/3}$"
 
     ax.clear()
@@ -230,10 +330,27 @@ toolbar = NavigationToolbar2Tk(canvas, plot_frame)
 toolbar.update()
 toolbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-import_button = ttk.Button( 
-    ctrl_frame, text="Import CSV", command=import_csv_data
+import_button_ab = ttk.Button( 
+    ctrl_frame, text="Import Absorption Data", command=import_absorption_data
 )
-import_button.pack(fill=tk.X, pady=5)
+import_button_ab.pack(fill=tk.X, pady=5)
+
+import_button_t_r = ttk.Button(
+    ctrl_frame, text="Import Transmittance and Reflectance Data", command=import_t_r_data
+    )
+import_button_t_r.pack(fill=tk.X, pady=5)
+
+d_label = ttk.Label(ctrl_frame, text="Distance (cm)")
+d_label.pack(fill=tk.X, pady=5)
+d_var = tk.DoubleVar()
+d_input = ttk.Entry(ctrl_frame, textvariable=d_var)
+d_input.pack(fill=tk.X, pady=5)
+
+spc_var = tk.StringVar(value="Absorbance")
+spc_menu = ttk.OptionMenu(ctrl_frame, spc_var,
+            "Absorbance",
+            *["Absorbance", "Transmittance + Reflectance"])
+spc_menu.pack(fill=tk.X, pady=5)
 
 n_var = tk.StringVar(value="Direct allowed (n=2)")
 n_menu = ttk.OptionMenu(ctrl_frame, n_var,
