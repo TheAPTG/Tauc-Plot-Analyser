@@ -89,12 +89,12 @@ def import_t_r_data():
 
     f_types = [('CSV Files', '*.csv'), ('text Files', '*.txt')]
 
-    r_file_path = askopenfilename(filetypes=f_types, title="Select Reflectance File")
-    if not r_file_path:
-        return
-
     t_file_path = askopenfilename(filetypes=f_types, title="Select Transmittance File")
     if not t_file_path:
+        return
+
+    r_file_path = askopenfilename(filetypes=f_types, title="Select Reflectance File")
+    if not r_file_path:
         return
 
     # Load Reflectance data
@@ -156,13 +156,13 @@ def import_t_r_data():
         T = pd.DataFrame(t_cleaned_data, index=wavelengths)
 
     # Merge R and T into a single DataFrame
-    data = pd.concat([R, T], axis=1)
+    data = pd.concat([T, R], axis=1)
 
     # Update the sample dropdown menu
     sample_menu['menu'].delete(0, 'end')
-    for sample in data.columns:
-        sample_menu['menu'].add_command(label=sample, command=tk._setit(sample_var, sample))
-    sample_var.set(data.columns[0])  # Set default selection
+    name = data.columns[0] + ' ' + data.columns[1]
+    sample_menu['menu'].add_command(label=name, command=tk._setit(sample_var, name))
+    sample_var.set(name)  # Set default selection
 
     # Calculate min and max photon energy
     photon_energy = energy(data.index)
@@ -181,7 +181,6 @@ def import_t_r_data():
     lb_2_var.set(min_e + 0.2 * (max_e - min_e))
     ub_2_var.set(min_e + 0.8 * (max_e - min_e))
 
-    print(data)
     return data
 
 def energy(data):
@@ -235,7 +234,7 @@ def plot_tauc(_=None):
     if spc_type == "Absorbance":
         abs_coeff = data[sample]/distance
     else:
-        abs_coeff = -np.log(T[sample]/(100 - R[sample]))/distance
+        abs_coeff = -np.log(data.iloc[:,0]/(100 - data.iloc[:,1]))/distance
 
     if transition_type == "Direct allowed (n=2)":
         n = 2
